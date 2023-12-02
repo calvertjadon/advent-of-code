@@ -17,7 +17,6 @@ DIGITS = [
 
 
 def calculate_line_cv(line: str) -> int:
-    digits = [c for c in line if c.isdigit()]
     digits = []
     for i in range(len(line)):
         if line[i].isdigit():
