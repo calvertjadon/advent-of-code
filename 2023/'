@@ -1,0 +1,97 @@
+import argparse
+
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+
+
+
+class Color(str, Enum):
+    RED = "red"
+    GREEN = "green"
+    BLUE = "blue"
+
+
+@dataclass
+class DiceSet:
+    color: Color
+    quantity: int
+
+
+class DiceBag:
+    contents: dict[Color, int]
+
+    def __init__(self, contents: dict[Color, int]) -> None:
+        self.contents = contents
+
+
+@dataclass
+class Round:
+    dice_sets: dict[Color, int]  # color, quantity
+
+
+class Game:
+    id: int
+    rounds: list[Round]
+
+    def __init__(self, id: int, rounds: list[Round]) -> None:
+        self.id = id
+        self.rounds = rounds
+
+    def is_possible(self, dice_bag: DiceBag) -> bool:
+        available = {**dice_bag.contents}
+        for round in self.rounds:
+            for color, quantity in round.dice_sets.items():
+                if color not in dice_bag.contents:
+                    return False
+
+                available[color] -= quantity
+                if available[color] < 0:
+                    return False
+        return True
+
+    @classmethod
+    def from_record(cls, line: str) -> "Game":
+        game_record, round_records = line.split(":")
+        game_id = int(game_record[-1])
+
+        rounds = []
+
+        for round_record in round_records.split(";"):
+            sets = {}
+            for dice_set in round_record.strip().split(", "):
+                quantity, color = dice_set.split(" ")
+                sets[Color(color)] = int(quantity)
+
+            rounds.append(Round(dice_sets=sets))
+
+        return cls(id=game_id, rounds=rounds)
+
+def calculate_possible_game_sum(game_records: str) -> int:
+    games = {True: [], False: []}
+
+    bag = DiceBag(contents={Color.RED: 12, Color.GREEN: 13, Color.BLUE: 14})
+    for record in game_records.splitlines():
+        print(record)
+        if record.strip() == "":
+            continue
+        game = Game.from_record(record.strip())
+        is_possible = game.is_possible(bag)
+        print(is_possible)
+        games[game.is_possible(bag)].append(game.id)
+
+    print(games)
+
+    return sum(games[True])
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_file", type=Path)
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    input_file: Path = args.input_file
+    print(calculate_possible_game_sum(input_file.read_text()))
+
