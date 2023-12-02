@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aoc2023"
+authors = [{ name = "Jadon Calvert", email = "calvertjadon@gmail.com" }]
+description = ""
+version = "1"
+requires-python = ">=3.12,<4"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "build"]
+
+[project.scripts]
+aoc23d1 = "aoc2023.day1:main"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--cov --cov-report html --cov-report term-missing"
+testpaths = ["tests"]
+
+[tool.coverage.report]
+exclude_also = ["if __name__ == .__main__.:"]
+
+[tool.coverage.run]
+source = ["src"]
