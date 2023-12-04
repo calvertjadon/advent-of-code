@@ -1,115 +1,86 @@
+from collections import defaultdict
+import math
 import sys
 
+from dataclasses import dataclass
+from enum import Enum
+
+
+class Dir(tuple, Enum):
+    LEFT        =   (-1,  0)
+    UP_LEFT     =   (-1, -1)
+    UP          =   ( 0, -1)
+    UP_RIGHT    =   ( 1, -1)
+    RIGHT       =   ( 1,  0)
+    RIGHT_DOWN  =   ( 1,  1)
+    DOWN        =   ( 0,  1)
+    DOWN_LEFT   =   (-1,  1)
+
+@dataclass
+class Point:
+    x: int
+    y: int
+
+    def __hash__(self) -> int:
+        return hash((self.x, self.y))
 
 def is_symbol(c: str) -> bool:
     return not c.isalnum() and c != "."
 
 
+def find_symbols_adjacent_to_point(p: Point, lines: list[str]) -> list[Point]:
+    adjacent = []
+
+    for x_offset, y_offset in Dir:
+
+        curr = Point(p.x + x_offset, p.y + y_offset)
+        if 0 <= curr.y < len(lines) and 0 <= curr.x < len(lines[curr.y]) and is_symbol(char_at_pos(curr, lines)):
+            adjacent.append(curr)
+
+    return adjacent
+
+def char_at_pos(p: Point, lines: list[str]) -> str:
+    return lines[p.y][p.x]
+
+
 if __name__ == "__main__":
-    #    sample_input = """\
-    # 467..114..
-    # ...*......
-    # ..35..633.
-    # ......#...
-    # 617*......
-    # .....+.58.
-    # ..592.....
-    # ......755.
-    # ...$.*....
-    # .664.598..""".splitlines()
-
     with open(sys.argv[1], "r") as f:
-        sample_input = f.readlines()
+        lines = f.read().strip().splitlines()
 
-    total = 0
-    for i, line in enumerate(sample_input):
-        n = ""
-        is_part_number = False
+    part_numbers = []
+    gear_ratio_candiates: dict[Point, list[int]] = defaultdict(list)
+
+    for i, line in enumerate(lines):
+        line = line.strip() + "."
+        part_number_digits: list[str] = []
+        adjacent_symbol_positions: set[Point] = set()
+
         for j, char in enumerate(line):
+
             if char.isdigit():
-                n += char
+                part_number_digits.append(char)
 
-                # check if n is a part number
-                # check left
-                if (
-                    j > 0
-                    and not sample_input[i][j - 1].isdigit()
-                    and sample_input[i][j - 1] != "."
-                ):
-                    is_part_number = True
-                    continue
+                for p in find_symbols_adjacent_to_point(Point(j, i), lines):
+                    adjacent_symbol_positions.add(p)
 
-                # check up left diag
-                if (
-                    j > 0
-                    and i > 0
-                    and not sample_input[i - 1][j - 1].isdigit()
-                    and sample_input[i - 1][j - 1] != "."
-                ):
-                    is_part_number = True
-                    continue
-
-                # check up
-                if (
-                    i > 0
-                    and not sample_input[i - 1][j].isdigit()
-                    and sample_input[i - 1][j] != "."
-                ):
-                    is_part_number = True
-                    continue
-
-                # check up right diag
-                if (
-                    j < len(line) - 2
-                    and i > 0
-                    and not sample_input[i - 1][j + 1].isdigit()
-                    and sample_input[i - 1][j + 1] != "."
-                ):
-                    is_part_number = True
-                    continue
-
-                # check right
-                if (
-                    j < len(line) - 2
-                    and not sample_input[i][j + 1].isdigit()
-                    and sample_input[i][j + 1] != "."
-                ):
-                    is_part_number = True
-                    continue
-
-                # check down right diag
-                if (
-                    j < len(line) - 2
-                    and i < len(sample_input) - 2
-                    and not sample_input[i + 1][j + 1].isdigit()
-                    and sample_input[i + 1][j + 1] != "."
-                ):
-                    is_part_number = True
-                    continue
-
-                # check down
-                if (
-                    i < len(sample_input) - 2
-                    and not sample_input[i + 1][j].isdigit()
-                    and sample_input[i + 1][j] != "."
-                ):
-                    is_part_number = True
-                    continue
-
-                # check down left diag
-                if (
-                    j > 0
-                    and i < len(sample_input) - 2
-                    and not sample_input[i + 1][j - 1].isdigit()
-                    and sample_input[i + 1][j - 1] != "."
-                ):
-                    is_part_number = True
-                    continue
             else:
-                if is_part_number:
-                    print(n)
-                    total += int(n)
-                    n = ""
-                    is_part_number = False
+                if len(adjacent_symbol_positions) > 0:
 
-    print(total)
+                    part_number = int("".join(part_number_digits))
+                    part_numbers.append(part_number)
+
+                    for symbol_pos in adjacent_symbol_positions:
+                        if char_at_pos(symbol_pos, lines) == "*":
+                            gear_ratio_candiates[symbol_pos].append(part_number)
+
+                part_number_digits = []
+                adjacent_symbol_positions = set()
+
+    gear_ratio = 0
+    for symbol_pos, gears in gear_ratio_candiates.items():
+        if len(gears) == 2:
+            gear_ratio += math.prod(gears)
+
+    print(f"part number sum: {sum(part_numbers)}")
+    print(f"gear_ratio: {gear_ratio}")
+
