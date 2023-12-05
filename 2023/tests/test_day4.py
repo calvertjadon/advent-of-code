@@ -1,6 +1,6 @@
 import pytest
 
-from aoc2023.day4 import calculate_result
+from aoc2023.day4 import calculate_points, Scratchcard
 
 
 @pytest.mark.parametrize("scratchcard,expected", [
@@ -12,6 +12,7 @@ from aoc2023.day4 import calculate_result
         ("Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11", 0),
     ])
 def test_scratchcards(scratchcard: str, expected: int):
-    points = calculate_result(scratchcard)
+    card = Scratchcard.from_record(scratchcard)
+    points = calculate_points(len(card.matches))
     assert points == expected
 
