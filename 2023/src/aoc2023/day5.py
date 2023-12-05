@@ -4,11 +4,21 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
-from multiprocessing.pool import ThreadPool
+from pprint import pprint
 
 
-class DestinationMap(str, Enum):
+class Category(str, Enum):
     SEEDS = "seeds"
+    SOIL = "soil"
+    FERTILIZER = "fertilizer"
+    WATER = "water"
+    LIGHT = "light"
+    TEMPERATURE = "temperature"
+    HUMIDITY = "humidity"
+    LOCATION = "location"
+
+
+class MapName(str, Enum):
     SEED_TO_SOIL = "seed-to-soil"
     SOIL_TO_FERTILIZER = "soil-to-fertilizer"
     FERTILIZER_TO_WATER = "fertilizer-to-water"
@@ -17,100 +27,99 @@ class DestinationMap(str, Enum):
     TEMPERATURE_TO_HUMIDITY = "temperature-to-humidity"
     HUMIDITY_TO_LOCATION = "humidity-to-location"
 
+    @property
+    def source(self) -> Category:
+        if self == MapName.SEED_TO_SOIL:
+            return Category.SEEDS
+        return Category(self.value.split("-to-")[0])
+
+    @property
+    def destination(self) -> Category:
+        return Category(self.value.split("-to-")[1])
+
+
+map_names = iter(MapName)
+
 
 @dataclass
-class RangeMap:
-    source_range_start: int
-    destination_source_start: int
-    range_length: int
+class MapEntry:
+    def __init__(
+        self, destination_range_start: int, source_range_start: int, range_length: int
+    ) -> None:
+        self._source_range = range(
+            source_range_start, source_range_start + range_length
+        )
+        self._destination_range = range(
+            destination_range_start, destination_range_start + range_length
+        )
 
-    def in_source_range(self, value: int) -> bool:
-        return self.source_range_start <= value < self.source_range_start + self.range_length
+    @property
+    def source_range(self) -> range:
+        return self._source_range
 
-    def get_destination(self, source: int) -> int | None:
-        if self.in_source_range(source):
-            return self.destination_source_start + source - self.source_range_start
-        return None
+    @property
+    def destination_range(self) -> range:
+        return self._destination_range
 
-
-def read_input(almanac: str) -> tuple[list[range], dict[DestinationMap, list[RangeMap]]]:
-    seed_ranges = []
-    range_maps: dict[DestinationMap, list[RangeMap]] = defaultdict(list)
-
-    for match in re.finditer(r"(.+):\s([\d\s]+)", almanac, re.MULTILINE):
-        header = match.group(1).strip().split()[0]
-        data = [
-            [int(n) for n in line.split()]
-            for line in match.group(2).strip().splitlines()
-        ]
-
-        if header == DestinationMap.SEEDS:
-            seed_iter = iter(data[0])
-            for start in seed_iter:
-                range_len = next(seed_iter)
-                seed_ranges.append(range(start, start+range_len))
-            continue
-
-        for dst_rng_st, src_rng_st, rng_len in data:
-            range_maps[DestinationMap(header)].append(
-                RangeMap(
-                    source_range_start=src_rng_st,
-                    destination_source_start=dst_rng_st,
-                    range_length=rng_len,
-                )
-            )
-
-    return seed_ranges, range_maps
-
-
-def get_destination(source: int, ranges: list[RangeMap]) -> int:
-    for range_map in ranges:
-        if range_map.in_source_range(source):
-            dest = range_map.get_destination(source)
-            if not dest:
-                raise Exception("something broke")
-            return dest
-    return source
-
-
-def get_seed_location(
-    seed: int, range_maps: dict[DestinationMap, list[RangeMap]]
-) -> int:
-    soil = get_destination(seed, range_maps[DestinationMap.SEED_TO_SOIL])
-    fertilizer = get_destination(soil, range_maps[DestinationMap.SOIL_TO_FERTILIZER])
-    water = get_destination(fertilizer, range_maps[DestinationMap.FERTILIZER_TO_WATER])
-    light = get_destination(water, range_maps[DestinationMap.WATER_TO_LIGHT])
-    temp = get_destination(light, range_maps[DestinationMap.LIGHT_TO_TEMPERATURE])
-    humidity = get_destination(temp, range_maps[DestinationMap.TEMPERATURE_TO_HUMIDITY])
-    location = get_destination(
-        humidity, range_maps[DestinationMap.HUMIDITY_TO_LOCATION]
-    )
-    return location
+    def get_destination(self, source: int) -> int:
+        return source - self.source_range.start + self.destination_range.start
 
 
 if __name__ == "__main__":
     with open(sys.argv[1], "r") as f:
         almanac = f.read().strip()
 
-    seed_ranges, range_maps = read_input(almanac)
+    map_entries: dict[MapName, list[MapEntry]] = defaultdict(list)
+    map_results: dict[Category, list[range]] = defaultdict(list)
 
-    locations = []
-    threads = []
+    for match in re.finditer(r"(.+):\s([\d\s]+)", almanac, re.MULTILINE):
+        header = match.group(1).strip().split()[0]
+        if header == Category.SEEDS:
+            seed_data = iter(list(map(int, match.group(2).strip().split())))
+            for seed_range_start in seed_data:
+                range_length = next(seed_data)
+                map_results[Category.SEEDS].append(
+                    range(seed_range_start, seed_range_start + range_length)
+                )
 
-    pool = ThreadPool(processes=4)
-    print(seed_ranges)
-    # sys.exit()
+        else:
+            map_name = MapName(header)
+            map_entries[map_name] = [
+                MapEntry(*map(int, line.split()))
+                for line in match.group(2).strip().splitlines()
+            ]
 
-    for seed_range in seed_ranges:
-        for seed in seed_range:
-            thread = pool.apply_async(func=get_seed_location, args=(seed, range_maps))
-            threads.append(thread)
+    for map_name in map_names:
+        while len(map_results[map_name.source]) > 0:
+            seed_range = map_results[map_name.source].pop()
 
-            # locations.append(get_seed_location(seed, range_maps))
+            for map_entry in map_entries[map_name]:
+                overlap_start = max(seed_range.start, map_entry.source_range.start)
+                overlap_end = min(seed_range.stop, map_entry.source_range.stop)
 
-    for thread in threads:
-        location = thread.get()
-        locations.append(location)
+                if overlap_start < overlap_end:
+                    map_results[map_name.destination].append(
+                        range(
+                            map_entry.get_destination(overlap_start),
+                            map_entry.get_destination(overlap_end)
+                        )
+                    )
 
-    print(f"nearest seed location: {min(locations)}")
+                    if overlap_start > seed_range.start:
+                        map_results[map_name.source].append(
+                            range(seed_range.start, overlap_start)
+                        )
+
+                    if seed_range.stop > overlap_end:
+                        map_results[map_name.source].append(
+                            range(overlap_end, seed_range.stop)
+                        )
+
+                    break
+            else:
+                map_results[map_name.destination].append(
+                    range(seed_range.start, seed_range.stop)
+                )
+
+    pprint(min(r.start for r in map_results[Category.LOCATION]))
 
